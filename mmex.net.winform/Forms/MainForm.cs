@@ -61,13 +61,11 @@ public class MainForm : Form
         _scheduledList.Visible = false;
 
         // Outer split: nav | content
-        _split = new SplitContainer
-        {
-            Dock = DockStyle.Fill,
-            SplitterDistance = 220,
-            Panel1MinSize = 150,
-            Panel2MinSize = 400
-        };
+        // Do NOT set Panel1MinSize, Panel2MinSize, or SplitterDistance here —
+        // the container has no width yet and setting them triggers an internal
+        // set_SplitterDistance call that throws InvalidOperationException.
+        // All of those are applied in the Load event below.
+        _split = new SplitContainer { Dock = DockStyle.Fill };
         _split.Panel1.Controls.Add(_accountList);
         _split.Panel2.Controls.Add(_transactionList);
         _split.Panel2.Controls.Add(_scheduledList);
@@ -79,7 +77,13 @@ public class MainForm : Form
         Controls.Add(_statusStrip);
         Controls.Add(menu);
 
-        Load += async (_, _) => await LoadAsync();
+        Load += async (_, _) =>
+        {
+            _split.Panel1MinSize = 150;
+            _split.Panel2MinSize = 300;
+            _split.SplitterDistance = 220;
+            await LoadAsync();
+        };
     }
 
     private MenuStrip BuildMenu()

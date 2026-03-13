@@ -15,3 +15,6 @@ mmex.net.winform.tests/bin/*
 
 mmex.net.mcpServer/obj/*
 mmex.net.mcpServer/bin/*
+
+mmex.net.tests/bin/*
+mmex.net.tests/obj/*

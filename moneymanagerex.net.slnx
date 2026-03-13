@@ -2,6 +2,7 @@
   <Project Path="mmex.net.core/mmex.net.core.csproj" />
   <Project Path="mmex.net.importer/mmex.net.importer.csproj" />
   <Project Path="mmex.net.mcpServer/mmex.net.mcpServer.csproj" />
+  <Project Path="mmex.net.tests/mmex.net.tests.csproj" />
   <Project Path="mmex.net.webServer/mmex.net.webServer.csproj" />
   <Project Path="mmex.net.winform/mmex.net.winform.csproj" />
 </Solution>

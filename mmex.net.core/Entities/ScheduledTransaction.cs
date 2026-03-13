@@ -20,7 +20,8 @@ public class ScheduledTransaction
     public string? Date { get; set; }
     public int? FollowUpId { get; set; }
     public decimal? ToAmount { get; set; }
-    public int Color { get; set; } = -1;
+    /// <summary>wxColour stored as unsigned 32-bit int; must be long to avoid int32 overflow.</summary>
+    public long Color { get; set; } = -1;
 
     // Scheduling-specific
     /// <summary>Encoded as ExecutionMode * 100 + Frequency.</summary>

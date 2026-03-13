@@ -22,7 +22,8 @@ public class Transaction
     public string? DeletedTime { get; set; }
     public int? FollowUpId { get; set; }
     public decimal? ToAmount { get; set; }
-    public int Color { get; set; } = -1;
+    /// <summary>wxColour stored as unsigned 32-bit int; must be long to avoid int32 overflow.</summary>
+    public long Color { get; set; } = -1;
 
     // Navigation
     public Account? Account { get; set; }

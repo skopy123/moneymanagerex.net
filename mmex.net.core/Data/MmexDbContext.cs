@@ -114,7 +114,7 @@ public class MmexDbContext : DbContext
             e.Property(t => t.DeletedTime).HasColumnName("DELETEDTIME");
             e.Property(t => t.FollowUpId).HasColumnName("FOLLOWUPID");
             e.Property(t => t.ToAmount).HasColumnName("TOTRANSAMOUNT");
-            e.Property(t => t.Color).HasColumnName("COLOR").HasDefaultValue(-1);
+            e.Property(t => t.Color).HasColumnName("COLOR").HasDefaultValue(-1L);
 
             // Soft delete global query filter
             e.HasQueryFilter(t => t.DeletedTime == null);
@@ -154,7 +154,7 @@ public class MmexDbContext : DbContext
             e.Property(s => s.Date).HasColumnName("TRANSDATE");
             e.Property(s => s.FollowUpId).HasColumnName("FOLLOWUPID");
             e.Property(s => s.ToAmount).HasColumnName("TOTRANSAMOUNT");
-            e.Property(s => s.Color).HasColumnName("COLOR").HasDefaultValue(-1);
+            e.Property(s => s.Color).HasColumnName("COLOR").HasDefaultValue(-1L);
             e.Property(s => s.Repeats).HasColumnName("REPEATS");
             e.Property(s => s.NextOccurrenceDate).HasColumnName("NEXTOCCURRENCEDATE");
             e.Property(s => s.NumOccurrences).HasColumnName("NUMOCCURRENCES");
