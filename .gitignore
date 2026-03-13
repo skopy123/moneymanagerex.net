@@ -1,0 +1,17 @@
+mmex.net.core/bin/*
+mmex.net.core/obj/*
+mmex.net.core.tests/bin/*
+mmex.net.core.tests/obj/*
+mmex.net.core.tests/coverage/*
+mmex.net.core.tests/TestResults/*
+
+mmex.net.importer/bin/*
+mmex.net.importer/obj/*
+mmex.net.webServer/bin/*
+mmex.net.webServer/obj/*
+mmex.net.winform/bin/*
+mmex.net.winform/obj/*
+mmex.net.winform.tests/bin/*    
+
+mmex.net.mcpServer/obj/*
+mmex.net.mcpServer/bin/*
