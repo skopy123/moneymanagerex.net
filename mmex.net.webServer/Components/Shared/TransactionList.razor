@@ -1,0 +1,278 @@
+@inject ITransactionService TransactionService
+@inject IAccountService AccountService
+@inject IAttachmentService AttachmentService
+@inject IDialogService DialogService
+@inject IPayeeService PayeeService
+@inject ICategoryService CategoryService
+@inject ISnackbar Snackbar
+@inject AppSettings Settings
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudPaper Elevation="1">
+        <MudToolBar Dense="true">
+            <MudText Typo="Typo.subtitle1">
+                @_account?.Name
+                @if (_balance.HasValue)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="@(_balance.Value >= 0 ? Color.Success : Color.Error)" Class="ml-2">
+                        Balance: @_balance.Value.ToString("N2") @_account?.Currency?.Symbol
+                    </MudChip>
+                }
+            </MudText>
+            <MudSpacer />
+            <MudSelect T="string" Value="_dateFilter" ValueChanged="OnDateFilterChanged" Dense="true"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:180px" Class="mr-2">
+                <MudSelectItem Value="@("all")">All</MudSelectItem>
+                <MudSelectItem Value="@("thisMonth")">This Month</MudSelectItem>
+                <MudSelectItem Value="@("lastMonth")">Last Month</MudSelectItem>
+                <MudSelectItem Value="@("last3Months")">Last 3 Months</MudSelectItem>
+                <MudSelectItem Value="@("last6Months")">Last 6 Months</MudSelectItem>
+                <MudSelectItem Value="@("thisYear")">This Year</MudSelectItem>
+            </MudSelect>
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="OnNewTransaction" />
+        </MudToolBar>
+
+        <MudTable Items="_filteredRows" Dense="true" Hover="true" FixedHeader="true" Height="calc(100vh - 230px)"
+                  OnRowClick="OnRowClick" T="TrxRow" Breakpoint="Breakpoint.None" RowStyleFunc="RowStyle">
+            <HeaderContent>
+                <MudTh Style="width:24px"></MudTh>
+                <MudTh>Date</MudTh>
+                <MudTh>Payee</MudTh>
+                <MudTh>Category</MudTh>
+                <MudTh Style="text-align:right">Amount</MudTh>
+                <MudTh Style="text-align:right">Balance</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="width:100px"></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    @if (context.AttachmentCount > 0)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Color="Color.Default" />
+                    }
+                </MudTd>
+                <MudTd>@context.Transaction.Date</MudTd>
+                <MudTd>
+                    @if (context.Transaction.Type == TransactionType.Transfer)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small" Class="mr-1" />
+                        @(context.Transaction.ToAccount?.Name ?? context.Transaction.Account?.Name)
+                    }
+                    else
+                    {
+                        @context.Transaction.Payee?.Name
+                    }
+                </MudTd>
+                <MudTd>@context.Transaction.Category?.Name</MudTd>
+                <MudTd Style="text-align:right">
+                    <span class="@(context.Flow >= 0 ? "amount-positive" : "amount-negative")">
+                        @context.Flow.ToString("N2")
+                    </span>
+                </MudTd>
+                <MudTd Style="text-align:right">
+                    <span class="@(context.RunningBalance >= 0 ? "amount-positive" : "amount-negative")">
+                        @context.RunningBalance.ToString("N2")
+                    </span>
+                </MudTd>
+                <MudTd>
+                    @if (context.Transaction.Status != TransactionStatus.None)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Transaction.Status)">
+                            @context.Transaction.Status
+                        </MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="() => OnEdit(context.Transaction)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                   OnClick="() => OnDuplicate(context.Transaction)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="() => OnDelete(context.Transaction)" />
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Align="Align.Center" Class="pa-4">No transactions found</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    [Parameter, EditorRequired] public long AccountId { get; set; }
+
+    private bool _loading = true;
+    private Account? _account;
+    private decimal? _balance;
+    private List<TrxRow> _rows = [];
+    private List<TrxRow> _filteredRows = [];
+    private Dictionary<long, int> _attachmentCounts = new();
+    private string _dateFilter = "all";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AccountId <= 0) return;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        _account = await AccountService.GetByIdAsync(AccountId);
+        if (_account == null) return;
+
+        var data = await TransactionService.GetRunningBalanceAsync(AccountId);
+        var ids = data.Select(d => d.Transaction.Id).ToList();
+        _attachmentCounts = await AttachmentService.GetCountsByRefAsync("Transaction", ids);
+
+        _rows = data.Select(d => new TrxRow
+        {
+            Transaction = d.Transaction,
+            RunningBalance = d.RunningBalance,
+            Flow = d.Transaction.GetFlow(AccountId),
+            AttachmentCount = _attachmentCounts.GetValueOrDefault(d.Transaction.Id)
+        }).ToList();
+
+        _balance = await AccountService.GetBalanceAsync(AccountId);
+        ApplyFilter();
+        _loading = false;
+    }
+
+    private void OnDateFilterChanged(string value)
+    {
+        _dateFilter = value;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        DateOnly? from = _dateFilter switch
+        {
+            "thisMonth" => new DateOnly(today.Year, today.Month, 1),
+            "lastMonth" => new DateOnly(today.Year, today.Month, 1).AddMonths(-1),
+            "last3Months" => today.AddMonths(-3),
+            "last6Months" => today.AddMonths(-6),
+            "thisYear" => new DateOnly(today.Year, 1, 1),
+            _ => null
+        };
+
+        _filteredRows = from == null
+            ? _rows
+            : _rows.Where(r => DateOnly.TryParse(r.Transaction.Date, out var d) && d >= from.Value).ToList();
+        StateHasChanged();
+    }
+
+    private async Task OnNewTransaction()
+    {
+        var dialog = await ShowTransactionDialog("New Transaction", null);
+        if (dialog == null) return;
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is TransactionDialogResult data)
+        {
+            await TransactionService.CreateAsync(data.Transaction, data.Splits);
+            Snackbar.Add("Transaction created", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OnEdit(Transaction trx)
+    {
+        var dialog = await ShowTransactionDialog("Edit Transaction", trx);
+        if (dialog == null) return;
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is TransactionDialogResult data)
+        {
+            data.Transaction.Id = trx.Id;
+            await TransactionService.UpdateAsync(data.Transaction, data.Splits);
+            Snackbar.Add("Transaction updated", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OnDuplicate(Transaction source)
+    {
+        var copy = new Transaction
+        {
+            AccountId = source.AccountId,
+            Date = source.Date,
+            Type = source.Type,
+            Amount = source.Amount,
+            ToAmount = source.ToAmount,
+            ToAccountId = source.ToAccountId,
+            PayeeId = source.PayeeId,
+            CategoryId = source.CategoryId,
+            Status = TransactionStatus.None,
+            Number = source.Number,
+            Notes = source.Notes,
+        };
+        var dialog = await ShowTransactionDialog("Duplicate Transaction", copy);
+        if (dialog == null) return;
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is TransactionDialogResult data)
+        {
+            await TransactionService.CreateAsync(data.Transaction, data.Splits);
+            Snackbar.Add("Transaction duplicated", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OnDelete(Transaction trx)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Delete Transaction",
+            $"Delete transaction from {trx.Date} for {trx.Amount:N2}?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        await TransactionService.SoftDeleteAsync(trx.Id);
+        Snackbar.Add("Transaction deleted", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task OnRowClick(TableRowClickEventArgs<TrxRow> args) => await OnEdit(args.Item!.Transaction);
+
+    private async Task<IDialogReference?> ShowTransactionDialog(string title, Transaction? trx)
+    {
+        var payees = await PayeeService.GetAllAsync();
+        var categories = await CategoryService.GetAllAsync();
+        var accounts = await AccountService.GetAllOpenAsync();
+        var parameters = new DialogParameters<TransactionDialog>
+        {
+            { x => x.Transaction, trx },
+            { x => x.AccountId, AccountId },
+            { x => x.Payees, payees },
+            { x => x.Categories, categories },
+            { x => x.Accounts, accounts }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        return await DialogService.ShowAsync<TransactionDialog>(title, parameters, options);
+    }
+
+    private static Color StatusColor(TransactionStatus status) => status switch
+    {
+        TransactionStatus.Reconciled => Color.Success,
+        TransactionStatus.Void => Color.Default,
+        TransactionStatus.FollowUp => Color.Warning,
+        TransactionStatus.Duplicate => Color.Error,
+        _ => Color.Default
+    };
+
+    private static string RowStyle(TrxRow row, int _) =>
+        row.Transaction.Status == TransactionStatus.Void ? "opacity:0.5" : "";
+
+    private record TrxRow
+    {
+        public required Transaction Transaction { get; init; }
+        public decimal RunningBalance { get; init; }
+        public decimal Flow { get; init; }
+        public int AttachmentCount { get; init; }
+    }
+}

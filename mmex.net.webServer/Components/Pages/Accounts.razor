@@ -1,0 +1,103 @@
+@page "/accounts"
+@page "/accounts/{AccountId:long}"
+@inject IAccountService AccountService
+@inject ICurrencyService CurrencyService
+@inject IAttachmentService AttachmentService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Accounts - MoneyManager .NET</PageTitle>
+
+<MudGrid>
+    <MudItem xs="12" md="3">
+        <MudPaper Elevation="1" Class="pa-2">
+            <MudToolBar Dense="true" Gutters="false">
+                <MudText Typo="Typo.subtitle1">Accounts</MudText>
+                <MudSpacer />
+                <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" OnClick="OnNewAccount" />
+            </MudToolBar>
+
+            @if (_accounts == null)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else
+            {
+                <MudTreeView T="object" Dense="true" ExpandOnClick="true">
+                    @foreach (var group in _accounts.GroupBy(a => a.Type).OrderBy(g => g.Key))
+                    {
+                        <MudTreeViewItem T="object" Text="@group.Key.ToString()" Icon="@GetAccountIcon(group.Key)">
+                            @foreach (var acct in group)
+                            {
+                                <MudTreeViewItem T="object" Text="@acct.Name"
+                                    Icon="@(acct.IsFavorite ? Icons.Material.Filled.Star : Icons.Material.Filled.AccountCircle)"
+                                    OnClick="() => SelectAccount(acct)" />
+                            }
+                        </MudTreeViewItem>
+                    }
+                </MudTreeView>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="9">
+        @if (AccountId > 0)
+        {
+            <TransactionList AccountId="AccountId" />
+        }
+        else
+        {
+            <MudPaper Elevation="0" Class="pa-8 d-flex align-center justify-center" Style="min-height:400px">
+                <MudText Typo="Typo.h6" Color="Color.Secondary">Select an account from the list</MudText>
+            </MudPaper>
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    [Parameter] public long AccountId { get; set; }
+
+    private IList<Account>? _accounts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _accounts = await AccountService.GetAllOpenAsync();
+    }
+
+    private void SelectAccount(Account account)
+    {
+        Nav.NavigateTo($"/accounts/{account.Id}");
+    }
+
+    private async Task OnNewAccount()
+    {
+        var currencies = await CurrencyService.GetAllAsync();
+        var parameters = new DialogParameters<AccountDialog>
+        {
+            { x => x.Currencies, currencies }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<AccountDialog>("New Account", parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is Account newAccount)
+        {
+            await AccountService.CreateAsync(newAccount);
+            _accounts = await AccountService.GetAllOpenAsync();
+            Snackbar.Add($"Account '{newAccount.Name}' created", Severity.Success);
+            StateHasChanged();
+        }
+    }
+
+    private static string GetAccountIcon(AccountType type) => type switch
+    {
+        AccountType.Cash => Icons.Material.Filled.Money,
+        AccountType.Checking => Icons.Material.Filled.AccountBalance,
+        AccountType.CreditCard => Icons.Material.Filled.CreditCard,
+        AccountType.Investment or AccountType.Shares => Icons.Material.Filled.TrendingUp,
+        AccountType.Term => Icons.Material.Filled.Savings,
+        AccountType.Loan => Icons.Material.Filled.RequestPage,
+        AccountType.Asset => Icons.Material.Filled.Home,
+        _ => Icons.Material.Filled.AccountBalanceWallet
+    };
+}

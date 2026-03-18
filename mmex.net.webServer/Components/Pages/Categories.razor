@@ -1,0 +1,149 @@
+@page "/categories"
+@inject ICategoryService CategoryService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Categories - MoneyManager .NET</PageTitle>
+
+<MudToolBar Dense="true" Class="mb-2">
+    <MudText Typo="Typo.h5">Categories</MudText>
+    <MudSpacer />
+    <MudTextField T="string" @bind-Value="_search" Placeholder="Search..." Adornment="Adornment.Start"
+        AdornmentIcon="@Icons.Material.Filled.Search" Margin="Margin.Dense" Immediate="true"
+        Style="max-width:300px" Class="mr-2" />
+    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="OnNew" />
+</MudToolBar>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="_filtered" Dense="true" Hover="true" Elevation="1" Breakpoint="Breakpoint.None">
+        <HeaderContent>
+            <MudTh>Category</MudTh>
+            <MudTh>Parent</MudTh>
+            <MudTh Style="width:140px"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                @if (context.ParentId > 0)
+                {
+                    <span style="padding-left:24px">@context.Name</span>
+                }
+                else
+                {
+                    <strong>@context.Name</strong>
+                }
+            </MudTd>
+            <MudTd>@context.Parent?.Name</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OnEdit(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                    OnClick="() => OnNewChild(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                    OnClick="() => OnDelete(context)" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private bool _loading = true;
+    private IList<Category> _allCategories = [];
+    private string? _search;
+
+    private IEnumerable<Category> _filtered
+    {
+        get
+        {
+            // Show root categories first, then children indented
+            var ordered = _allCategories
+                .OrderBy(c => c.ParentId > 0 ? c.ParentId : c.Id)
+                .ThenBy(c => c.ParentId > 0 ? 1 : 0)
+                .ThenBy(c => c.Name);
+
+            if (string.IsNullOrWhiteSpace(_search))
+                return ordered;
+
+            return ordered.Where(c =>
+                c.Name?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _allCategories = await CategoryService.GetAllAsync();
+        _loading = false;
+    }
+
+    private async Task OnNew()
+    {
+        var name = await PromptName("New Category", null);
+        if (name == null) return;
+        await CategoryService.CreateAsync(new Category { Name = name });
+        Snackbar.Add($"Category '{name}' created", Severity.Success);
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnNewChild(Category parent)
+    {
+        var name = await PromptName($"New subcategory of '{parent.Name}'", null);
+        if (name == null) return;
+        await CategoryService.CreateAsync(new Category { Name = name, ParentId = parent.Id });
+        Snackbar.Add($"Category '{name}' created", Severity.Success);
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnEdit(Category cat)
+    {
+        var name = await PromptName("Edit Category", cat.Name);
+        if (name == null) return;
+        cat.Name = name;
+        await CategoryService.UpdateAsync(cat);
+        Snackbar.Add("Category updated", Severity.Success);
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task OnDelete(Category cat)
+    {
+        var children = _allCategories.Where(c => c.ParentId == cat.Id).ToList();
+        if (children.Count > 0)
+        {
+            Snackbar.Add("Cannot delete category with subcategories", Severity.Warning);
+            return;
+        }
+        var confirm = await DialogService.ShowMessageBox(
+            "Delete Category", $"Delete category '{cat.Name}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await CategoryService.DeleteAsync(cat.Id);
+        Snackbar.Add("Category deleted", Severity.Success);
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task<string?> PromptName(string title, string? current)
+    {
+        var parameters = new DialogParameters<CategoryNameDialog>
+        {
+            { x => x.Name, current }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<CategoryNameDialog>(title, parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is string name)
+            return name;
+        return null;
+    }
+}

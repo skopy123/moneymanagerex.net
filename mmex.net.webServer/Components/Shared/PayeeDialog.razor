@@ -1,0 +1,83 @@
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudTextField T="string" Label="Name" @bind-Value="_name" Required="true" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudAutocomplete T="Category" Label="Default Category" @bind-Value="_selectedCategory"
+                    SearchFunc="SearchCategories" ToStringFunc="c => c?.Name ?? string.Empty"
+                    Margin="Margin.Dense" Dense="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField T="string" Label="Number" @bind-Value="_number" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField T="string" Label="Website" @bind-Value="_website" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField T="string" Label="Notes" @bind-Value="_notes" Lines="3" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudCheckBox T="bool" Label="Active" @bind-Value="_active" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Payee? Payee { get; set; }
+    [Parameter] public IList<Category> Categories { get; set; } = [];
+
+    private string? _name;
+    private Category? _selectedCategory;
+    private string? _number;
+    private string? _website;
+    private string? _notes;
+    private bool _active = true;
+
+    protected override void OnInitialized()
+    {
+        if (Payee != null)
+        {
+            _name = Payee.Name;
+            _selectedCategory = Categories.FirstOrDefault(c => c.Id == Payee.CategoryId);
+            _number = Payee.Number;
+            _website = Payee.Website;
+            _notes = Payee.Notes;
+            _active = Payee.Active != 0;
+        }
+    }
+
+    private Task<IEnumerable<Category>> SearchCategories(string? value, CancellationToken ct)
+    {
+        var result = string.IsNullOrEmpty(value)
+            ? Categories.AsEnumerable()
+            : Categories.Where(c => c.Name?.Contains(value, StringComparison.OrdinalIgnoreCase) == true);
+        return Task.FromResult(result);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) return;
+
+        var payee = new Payee
+        {
+            Name = _name!.Trim(),
+            CategoryId = _selectedCategory?.Id,
+            Number = _number,
+            Website = _website,
+            Notes = _notes,
+            Active = _active ? 1 : 0
+        };
+
+        MudDialog.Close(DialogResult.Ok(payee));
+    }
+}

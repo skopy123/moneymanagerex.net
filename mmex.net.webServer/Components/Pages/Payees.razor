@@ -1,0 +1,109 @@
+@page "/payees"
+@inject IPayeeService PayeeService
+@inject ICategoryService CategoryService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Payees - MoneyManager .NET</PageTitle>
+
+<MudToolBar Dense="true" Gutters="false" Class="mb-2">
+    <MudText Typo="Typo.h5">Payees</MudText>
+    <MudSpacer />
+    <MudTextField T="string" @bind-Value="_search" Placeholder="Search..." Adornment="Adornment.Start"
+        AdornmentIcon="@Icons.Material.Filled.Search" Margin="Margin.Dense" Immediate="true"
+        Style="max-width:300px" Class="mr-2" />
+    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" OnClick="OnNew" />
+</MudToolBar>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="_filtered" Dense="true" Hover="true" Elevation="1" Breakpoint="Breakpoint.None">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh>Notes</MudTh>
+            <MudTh Style="width:100px"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@context.Category?.Name</MudTd>
+            <MudTd>@context.Notes</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OnEdit(context)" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                    OnClick="() => OnDelete(context)" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private bool _loading = true;
+    private IList<Payee> _payees = [];
+    private IList<Category> _categories = [];
+    private string? _search;
+
+    private IEnumerable<Payee> _filtered =>
+        string.IsNullOrWhiteSpace(_search)
+            ? _payees
+            : _payees.Where(p => p.Name?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await CategoryService.GetAllAsync();
+        _payees = await PayeeService.GetAllAsync(activeOnly: false);
+        _loading = false;
+    }
+
+    private async Task OnNew()
+    {
+        var parameters = new DialogParameters<PayeeDialog>
+        {
+            { x => x.Categories, _categories }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<PayeeDialog>("New Payee", parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is Payee payee)
+        {
+            await PayeeService.CreateAsync(payee);
+            _payees = await PayeeService.GetAllAsync(activeOnly: false);
+            Snackbar.Add($"Payee '{payee.Name}' created", Severity.Success);
+        }
+    }
+
+    private async Task OnEdit(Payee payee)
+    {
+        var parameters = new DialogParameters<PayeeDialog>
+        {
+            { x => x.Payee, payee },
+            { x => x.Categories, _categories }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<PayeeDialog>("Edit Payee", parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled && result.Data is Payee updated)
+        {
+            updated.Id = payee.Id;
+            await PayeeService.UpdateAsync(updated);
+            _payees = await PayeeService.GetAllAsync(activeOnly: false);
+            Snackbar.Add("Payee updated", Severity.Success);
+        }
+    }
+
+    private async Task OnDelete(Payee payee)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Delete Payee", $"Delete payee '{payee.Name}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        await PayeeService.DeleteAsync(payee.Id);
+        _payees = await PayeeService.GetAllAsync(activeOnly: false);
+        Snackbar.Add("Payee deleted", Severity.Success);
+    }
+}

@@ -1,0 +1,25 @@
+html, body {
+    font-family: 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+}
+
+.amount-positive {
+    color: #2e7d32;
+    font-weight: 500;
+}
+
+.amount-negative {
+    color: #c62828;
+    font-weight: 500;
+}
+
+.mud-table .mud-table-cell {
+    padding: 6px 16px;
+}
+
+.stat-card {
+    transition: transform 0.15s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}

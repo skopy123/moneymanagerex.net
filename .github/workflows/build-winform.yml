@@ -1,0 +1,41 @@
+name: Build WinForms App
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'mmex.net.core/**'
+      - 'mmex.net.winform/**'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'mmex.net.core/**'
+      - 'mmex.net.winform/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore mmex.net.winform/mmex.net.winform.csproj
+
+      - name: Build
+        run: dotnet build mmex.net.winform/mmex.net.winform.csproj -c Release --no-restore
+
+      - name: Publish (self-contained)
+        run: dotnet publish mmex.net.winform/mmex.net.winform.csproj -c Release -r win-x64 --self-contained -o publish
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmex-winform-win-x64
+          path: publish/

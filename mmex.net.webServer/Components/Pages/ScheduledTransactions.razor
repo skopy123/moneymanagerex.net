@@ -1,0 +1,102 @@
+@page "/scheduled"
+@inject IScheduledTransactionService ScheduledService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Scheduled Transactions - MoneyManager .NET</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Scheduled Transactions</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="_scheduled" Dense="true" Hover="true" Elevation="1" Breakpoint="Breakpoint.None">
+        <HeaderContent>
+            <MudTh>Next Date</MudTh>
+            <MudTh>Account</MudTh>
+            <MudTh>Payee</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh Style="text-align:right">Amount</MudTh>
+            <MudTh>Frequency</MudTh>
+            <MudTh Style="width:80px"></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                @{
+                    var isOverdue = DateOnly.TryParse(context.NextOccurrenceDate, out var d)
+                        && d <= DateOnly.FromDateTime(DateTime.Today);
+                }
+                <MudText Color="@(isOverdue ? Color.Error : Color.Default)">
+                    @context.NextOccurrenceDate
+                </MudText>
+            </MudTd>
+            <MudTd>@context.Account?.Name</MudTd>
+            <MudTd>
+                @if (context.Type == TransactionType.Transfer)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small" Class="mr-1" />
+                    @context.ToAccount?.Name
+                }
+                else
+                {
+                    @context.Payee?.Name
+                }
+            </MudTd>
+            <MudTd>@context.Category?.Name</MudTd>
+            <MudTd Style="text-align:right">
+                <span class="@(context.Type == TransactionType.Deposit ? "amount-positive" : "amount-negative")">
+                    @context.Amount.ToString("N2")
+                </span>
+            </MudTd>
+            <MudTd>@context.GetFrequency()</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                    OnClick="() => OnExecute(context)">Post</MudButton>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Align="Align.Center" Class="pa-4">No scheduled transactions</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private bool _loading = true;
+    private IList<ScheduledTransaction> _scheduled = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _scheduled = await ScheduledService.GetAllAsync();
+        _loading = false;
+    }
+
+    private async Task OnExecute(ScheduledTransaction sched)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Post Transaction",
+            $"Post scheduled transaction '{sched.Payee?.Name}' for {sched.Amount:N2}?",
+            yesText: "Post", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        try
+        {
+            await ScheduledService.ExecuteAsync(sched.Id);
+            Snackbar.Add("Transaction posted", Severity.Success);
+            await LoadAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+}

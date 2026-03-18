@@ -1,0 +1,64 @@
+@inherits LayoutComponentBase
+@inject AppSettings Settings
+
+<MudThemeProvider Theme="_theme" IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Dense="true">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-2">MoneyManager .NET</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.caption" Class="mr-4">@Path.GetFileName(Settings.DatabasePath)</MudText>
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="@ToggleDarkMode" />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Variant="DrawerVariant.Mini"
+               OpenMiniOnHover="true">
+        <MudNavMenu>
+            <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+            <MudNavLink Href="/accounts" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AccountBalance">Accounts</MudNavLink>
+            <MudNavLink Href="/scheduled" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Schedule">Scheduled</MudNavLink>
+            <MudNavLink Href="/payees" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">Payees</MudNavLink>
+            <MudNavLink Href="/categories" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Category">Categories</MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#2e7d32",
+            Secondary = "#1565c0",
+            AppbarBackground = "#2e7d32"
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#66bb6a",
+            Secondary = "#42a5f5",
+            AppbarBackground = "#1b5e20"
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = ["Inter", "Roboto", "Helvetica", "Arial", "sans-serif"] }
+        }
+    };
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
+}

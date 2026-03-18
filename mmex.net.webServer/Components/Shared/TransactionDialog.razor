@@ -1,0 +1,290 @@
+@inject IAttachmentService AttachmentService
+@inject AppSettings Settings
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="6">
+                <MudDatePicker Label="Date" @bind-Date="_date" Editable="true" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSelect T="TransactionType" Label="Type" @bind-Value="_type" Margin="Margin.Dense">
+                    @foreach (var t in Enum.GetValues<TransactionType>())
+                    {
+                        <MudSelectItem Value="t">@t</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            @if (_type != TransactionType.Transfer)
+            {
+                <MudItem xs="12">
+                    <MudAutocomplete T="Payee" Label="Payee" @bind-Value="_selectedPayee"
+                        SearchFunc="SearchPayees" ToStringFunc="p => p?.Name ?? string.Empty"
+                        Margin="Margin.Dense" Dense="true" />
+                </MudItem>
+            }
+            else
+            {
+                <MudItem xs="12">
+                    <MudSelect T="Account" Label="To Account" @bind-Value="_selectedToAccount"
+                        ToStringFunc="a => a?.Name ?? string.Empty" Margin="Margin.Dense">
+                        @foreach (var a in Accounts.Where(a => a.Id != AccountId))
+                        {
+                            <MudSelectItem Value="a">@a.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+
+            <MudItem xs="12">
+                <MudAutocomplete T="Category" Label="Category" @bind-Value="_selectedCategory"
+                    SearchFunc="SearchCategories" ToStringFunc="c => c?.Name ?? string.Empty"
+                    Margin="Margin.Dense" Dense="true" />
+            </MudItem>
+
+            <MudItem xs="@(_type == TransactionType.Transfer ? 6 : 12)">
+                <MudNumericField T="decimal" Label="Amount" @bind-Value="_amount" Format="N2"
+                    Margin="Margin.Dense" Min="0" />
+            </MudItem>
+            @if (_type == TransactionType.Transfer)
+            {
+                <MudItem xs="6">
+                    <MudNumericField T="decimal" Label="To Amount" @bind-Value="_toAmount" Format="N2"
+                        Margin="Margin.Dense" Min="0" />
+                </MudItem>
+            }
+
+            <MudItem xs="6">
+                <MudSelect T="TransactionStatus" Label="Status" @bind-Value="_status" Margin="Margin.Dense">
+                    @foreach (var s in Enum.GetValues<TransactionStatus>())
+                    {
+                        <MudSelectItem Value="s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField T="string" Label="Number" @bind-Value="_number" Margin="Margin.Dense" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField T="string" Label="Notes" @bind-Value="_notes" Lines="3" Margin="Margin.Dense" />
+            </MudItem>
+        </MudGrid>
+
+        @* Splits *@
+        <MudExpansionPanels Class="mt-3" Elevation="0">
+            <MudExpansionPanel Text="@($"Splits ({_splits.Count})")" Expanded="@(_splits.Count > 0)">
+                <MudSimpleTable Dense="true">
+                    <thead>
+                        <tr><th>Category</th><th>Amount</th><th>Notes</th><th style="width:40px"></th></tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < _splits.Count; i++)
+                        {
+                            var idx = i;
+                            <tr>
+                                <td>
+                                    <MudAutocomplete T="Category" @bind-Value="_splits[idx].Category"
+                                        SearchFunc="SearchCategories" ToStringFunc="c => c?.Name ?? string.Empty"
+                                        Margin="Margin.Dense" Dense="true" />
+                                </td>
+                                <td>
+                                    <MudNumericField T="decimal" @bind-Value="_splits[idx].Amount" Format="N2"
+                                        Margin="Margin.Dense" />
+                                </td>
+                                <td>
+                                    <MudTextField T="string" @bind-Value="_splits[idx].Notes" Margin="Margin.Dense" />
+                                </td>
+                                <td>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                        OnClick="() => _splits.RemoveAt(idx)" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Size="Size.Small" Class="mt-1"
+                    OnClick="() => _splits.Add(new SplitRow())">Add Split</MudButton>
+            </MudExpansionPanel>
+
+            @* Attachments (only for existing transactions) *@
+            @if (_existingId.HasValue)
+            {
+                <MudExpansionPanel Text="@($"Attachments ({_attachments.Count})")">
+                    <MudList T="Attachment" Dense="true">
+                        @foreach (var att in _attachments)
+                        {
+                            <MudListItem T="Attachment">
+                                <div class="d-flex align-center">
+                                    <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Class="mr-2" />
+                                    <MudLink Href="@($"/api/attachments/{att.RefType}/{att.FileName}")" Target="_blank">
+                                        @att.FileName
+                                    </MudLink>
+                                    @if (!string.IsNullOrEmpty(att.Description))
+                                    {
+                                        <MudText Typo="Typo.caption" Class="ml-2">(@att.Description)</MudText>
+                                    }
+                                    <MudSpacer />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                        OnClick="() => OnDeleteAttachment(att)" />
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                    <MudFileUpload T="IBrowserFile" Accept="*/*" FilesChanged="OnFileUpload" Class="mt-2">
+                        <ActivatorContent>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Upload"
+                                Size="Size.Small">Upload Attachment</MudButton>
+                        </ActivatorContent>
+                    </MudFileUpload>
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Transaction? Transaction { get; set; }
+    [Parameter] public long AccountId { get; set; }
+    [Parameter] public IList<Payee> Payees { get; set; } = [];
+    [Parameter] public IList<Category> Categories { get; set; } = [];
+    [Parameter] public IList<Account> Accounts { get; set; } = [];
+
+    private long? _existingId;
+    private DateTime? _date = DateTime.Today;
+    private TransactionType _type;
+    private Payee? _selectedPayee;
+    private Category? _selectedCategory;
+    private Account? _selectedToAccount;
+    private decimal _amount;
+    private decimal _toAmount;
+    private TransactionStatus _status;
+    private string? _number;
+    private string? _notes;
+    private List<SplitRow> _splits = [];
+    private List<Attachment> _attachments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Transaction != null)
+        {
+            _existingId = Transaction.Id > 0 ? Transaction.Id : null;
+            if (DateOnly.TryParse(Transaction.Date, out var d))
+                _date = d.ToDateTime(TimeOnly.MinValue);
+            _type = Transaction.Type;
+            _selectedPayee = Payees.FirstOrDefault(p => p.Id == Transaction.PayeeId);
+            _selectedCategory = Categories.FirstOrDefault(c => c.Id == Transaction.CategoryId);
+            _selectedToAccount = Accounts.FirstOrDefault(a => a.Id == Transaction.ToAccountId);
+            _amount = Transaction.Amount;
+            _toAmount = Transaction.ToAmount ?? 0;
+            _status = Transaction.Status;
+            _number = Transaction.Number;
+            _notes = Transaction.Notes;
+
+            if (_existingId.HasValue)
+            {
+                _attachments = (await AttachmentService.GetByRefAsync("Transaction", _existingId.Value)).ToList();
+            }
+        }
+    }
+
+    private Task<IEnumerable<Payee>> SearchPayees(string? value, CancellationToken ct)
+    {
+        var result = string.IsNullOrEmpty(value)
+            ? Payees.AsEnumerable()
+            : Payees.Where(p => p.Name?.Contains(value, StringComparison.OrdinalIgnoreCase) == true);
+        return Task.FromResult(result);
+    }
+
+    private Task<IEnumerable<Category>> SearchCategories(string? value, CancellationToken ct)
+    {
+        var result = string.IsNullOrEmpty(value)
+            ? Categories.AsEnumerable()
+            : Categories.Where(c => c.Name?.Contains(value, StringComparison.OrdinalIgnoreCase) == true);
+        return Task.FromResult(result);
+    }
+
+    private async Task OnFileUpload(IBrowserFile file)
+    {
+        if (!_existingId.HasValue) return;
+
+        // Save to temp, then add via service
+        var tempPath = Path.Combine(Path.GetTempPath(), file.Name);
+        await using (var stream = File.Create(tempPath))
+            await file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(stream);
+
+        try
+        {
+            var att = new Attachment
+            {
+                RefType = "Transaction",
+                RefId = _existingId.Value,
+                Description = null
+            };
+            var result = await AttachmentService.AddAsync(att, tempPath, Settings.AttachmentFolder);
+            _attachments.Add(result);
+            StateHasChanged();
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
+    }
+
+    private async Task OnDeleteAttachment(Attachment att)
+    {
+        await AttachmentService.DeleteAsync(att.Id, Settings.AttachmentFolder);
+        _attachments.Remove(att);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit()
+    {
+        if (_amount <= 0) return;
+
+        var trx = new Transaction
+        {
+            AccountId = AccountId,
+            Date = _date.HasValue ? DateOnly.FromDateTime(_date.Value).ToString("yyyy-MM-dd") : null,
+            Type = _type,
+            Amount = _amount,
+            ToAmount = _type == TransactionType.Transfer ? _toAmount : null,
+            ToAccountId = _type == TransactionType.Transfer ? _selectedToAccount?.Id : null,
+            PayeeId = _type != TransactionType.Transfer ? (_selectedPayee?.Id ?? 0) : 0,
+            CategoryId = _splits.Count > 0 ? null : _selectedCategory?.Id,
+            Status = _status,
+            Number = _number,
+            Notes = _notes
+        };
+
+        var splits = _splits
+            .Where(s => s.Amount != 0)
+            .Select(s => new SplitTransaction
+            {
+                CategoryId = s.Category?.Id,
+                Amount = s.Amount,
+                Notes = s.Notes
+            }).ToList();
+
+        MudDialog.Close(DialogResult.Ok(new TransactionDialogResult
+        {
+            Transaction = trx,
+            Splits = splits.Count > 0 ? splits : null
+        }));
+    }
+
+    private class SplitRow
+    {
+        public Category? Category { get; set; }
+        public decimal Amount { get; set; }
+        public string? Notes { get; set; }
+    }
+}
