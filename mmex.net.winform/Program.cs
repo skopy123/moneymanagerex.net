@@ -12,13 +12,26 @@ namespace mmex.net.winform;
 
 internal static class Program
 {
+    internal static readonly string LastDbFile =
+        Path.Combine(AppContext.BaseDirectory, "lastDb.txt");
+
+    internal static void SaveLastDb(string path) =>
+        File.WriteAllText(LastDbFile, path);
+
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) => HandleException(e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            HandleException(e.ExceptionObject as Exception ?? new Exception(e.ExceptionObject?.ToString()));
+
         ApplicationConfiguration.Initialize();
 
-        string? dbPath = PickDatabase();
+        bool forceSelect = args.Contains("-selectDb", StringComparer.OrdinalIgnoreCase);
+        string? dbPath = ResolveDatabase(forceSelect);
         if (dbPath == null) return;
+        SaveLastDb(dbPath);
 
         var startupSw = Stopwatch.StartNew();
 
@@ -38,12 +51,16 @@ internal static class Program
             {
                 var attachmentFolder = Path.Combine(
                     Path.GetDirectoryName(dbPath)!,
-                    Path.GetFileNameWithoutExtension(dbPath) + "_attachments");
+                    "Attachments",
+                    $"MMEX_{Path.GetFileNameWithoutExtension(dbPath)}_Attachments");
+                
+                if (attachmentFolder.Contains("MMEX_myDbCopy_Attachments")) attachmentFolder = attachmentFolder.Replace("MMEX_myDbCopy_Attachments", "MMEX_myDb_Attachments");
 
                 services.AddSingleton(new AppSettings
                 {
                     DatabasePath = dbPath,
                     AttachmentFolder = attachmentFolder
+                    
                 });
 
                 services.AddDbContext<MmexDbContext>(o =>
@@ -68,6 +85,26 @@ internal static class Program
         logger.LogInformation("MainForm resolved in {Elapsed}ms", startupSw.ElapsedMilliseconds);
 
         Application.Run(mainForm);
+    }
+
+    private static string? ResolveDatabase(bool forceSelect)
+    {
+        if (!forceSelect)
+        {
+            if (File.Exists(LastDbFile))
+            {
+                var last = File.ReadAllText(LastDbFile).Trim();
+                if (File.Exists(last)) return last;
+            }
+        }
+        return PickDatabase();
+    }
+
+    private static void HandleException(Exception? ex)
+    {
+        var message = ex?.ToString() ?? "Unknown error";
+        Console.Error.WriteLine(message);
+        MessageBox.Show(message, "Unhandled Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
     private static string? PickDatabase()

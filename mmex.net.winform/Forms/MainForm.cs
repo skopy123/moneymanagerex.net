@@ -69,7 +69,7 @@ public class MainForm : Form
         _accountList.AccountSelected += OnAccountSelected;
         _accountList.AccountEditRequested += async (_, a) => await OnEditAccountAsync(a);
 
-        _transactionList = new TransactionListPanel(_transactionService, _accountService);
+        _transactionList = new TransactionListPanel(_transactionService, _accountService, _attachmentService);
         _transactionList.TransactionAddRequested      += OnNewTransaction;
         _transactionList.TransactionEditRequested     += OnTransactionEditRequested;
         _transactionList.TransactionDeleteConfirmed   += OnTransactionDeleteConfirmed;
@@ -111,6 +111,8 @@ public class MainForm : Form
         var menu = new MenuStrip();
 
         var fileMenu = new ToolStripMenuItem("&File");
+        fileMenu.DropDownItems.Add(new ToolStripMenuItem("&Open Database...", null, OnOpenDatabase));
+        fileMenu.DropDownItems.Add(new ToolStripSeparator());
         fileMenu.DropDownItems.Add(new ToolStripMenuItem("E&xit", null, (_, _) => Application.Exit()));
 
         var accountMenu = new ToolStripMenuItem("&Account");
@@ -322,6 +324,19 @@ public class MainForm : Form
                 SetStatus($"{dlg.Result.Name}  |  Balance: {balance:N2} {dlg.Result.Currency?.Symbol}");
             }
         }
+    }
+
+    private void OnOpenDatabase(object? sender, EventArgs e)
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Title = "Open MoneyManager database",
+            Filter = "MMEX Database (*.mmb)|*.mmb|SQLite Database (*.db)|*.db|All files (*.*)|*.*",
+            CheckFileExists = true
+        };
+        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        Program.SaveLastDb(dlg.FileName);
+        Application.Restart();
     }
 
     private void SetStatus(string text) => _statusLabel.Text = text;

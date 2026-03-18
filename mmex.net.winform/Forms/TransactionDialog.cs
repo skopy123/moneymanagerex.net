@@ -53,10 +53,10 @@ public class TransactionDialog : Form
         _attachmentPanel = new AttachmentPanel(attachmentService, attachmentFolder) { Dock = DockStyle.Fill };
 
         Text = existing == null ? "New Transaction" : "Edit Transaction";
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false; MinimizeBox = false;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(520, 520);
+        Size = new Size(560, 620);
 
         // Main fields
         _dtpDate = new DateTimePicker { Format = DateTimePickerFormat.Short, Dock = DockStyle.Fill };
@@ -68,7 +68,7 @@ public class TransactionDialog : Form
         _txtToAmount = new CurrencyTextBox { Dock = DockStyle.Fill };
         _cboStatus = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
         _txtNumber = new TextBox { Dock = DockStyle.Fill };
-        _txtNotes = new TextBox { Dock = DockStyle.Fill };
+        _txtNotes = new TextBox { Dock = DockStyle.Fill, Multiline = true, ScrollBars = ScrollBars.Vertical };
 
         foreach (var tt in Enum.GetValues<TransactionType>()) _cboType.Items.Add(tt);
         foreach (var ts in Enum.GetValues<TransactionStatus>()) _cboStatus.Items.Add(ts);
@@ -98,36 +98,61 @@ public class TransactionDialog : Form
         var tabMain = new TabPage("Transaction");
         var tabSplits = new TabPage("Splits");
         tabSplits.Controls.Add(splitsContainer);
-        var tabAttachments = new TabPage("Attachments");
-        tabAttachments.Controls.Add(_attachmentPanel);
         _tabs.TabPages.Add(tabMain);
         _tabs.TabPages.Add(tabSplits);
-        _tabs.TabPages.Add(tabAttachments);
 
-        // Layout for main tab
-        var layout = new TableLayoutPanel
+        // Top fields (9 rows, no Notes)
+        var fieldsLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(8),
+            Padding = new Padding(8, 8, 8, 0),
             ColumnCount = 2,
-            RowCount = 10
+            RowCount = 9
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        fieldsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        fieldsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         int row = 0;
-        AddRow(layout, "Date:", _dtpDate, row++);
-        AddRow(layout, "Type:", _cboType, row++);
-        AddRow(layout, "Payee:", _cboPayee, row++);
-        AddRow(layout, "Category:", _cboCategory, row++);
-        AddRow(layout, "To Account:", _cboToAccount, row++);
-        AddRow(layout, "Amount:", _txtAmount, row++);
-        AddRow(layout, "To Amount:", _txtToAmount, row++);
-        AddRow(layout, "Status:", _cboStatus, row++);
-        AddRow(layout, "Number:", _txtNumber, row++);
-        AddRow(layout, "Notes:", _txtNotes, row++);
+        AddRow(fieldsLayout, "Date:", _dtpDate, row++);
+        AddRow(fieldsLayout, "Type:", _cboType, row++);
+        AddRow(fieldsLayout, "Payee:", _cboPayee, row++);
+        AddRow(fieldsLayout, "Category:", _cboCategory, row++);
+        AddRow(fieldsLayout, "To Account:", _cboToAccount, row++);
+        AddRow(fieldsLayout, "Amount:", _txtAmount, row++);
+        AddRow(fieldsLayout, "To Amount:", _txtToAmount, row++);
+        AddRow(fieldsLayout, "Status:", _cboStatus, row++);
+        AddRow(fieldsLayout, "Number:", _txtNumber, row++);
 
-        tabMain.Controls.Add(layout);
+        // Bottom: Notes (top) above Attachments (bottom)
+        var notesPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(4, 4, 4, 0) };
+        notesPanel.Controls.Add(_txtNotes);
+        notesPanel.Controls.Add(new Label { Text = "Notes:", Dock = DockStyle.Top, Height = 16 });
+
+        var attachmentsPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(4, 0, 4, 4) };
+        attachmentsPanel.Controls.Add(_attachmentPanel);
+        attachmentsPanel.Controls.Add(new Label { Text = "Attachments:", Dock = DockStyle.Top, Height = 16 });
+
+        var bottomSplit = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            Panel1MinSize = 50,
+            Panel2MinSize = 60
+        };
+        bottomSplit.Panel1.Controls.Add(notesPanel);
+        bottomSplit.Panel2.Controls.Add(attachmentsPanel);
+
+        // Main tab: top half = fields, bottom half = notes + attachments
+        var mainSplit = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            Panel1MinSize = 150,
+            Panel2MinSize = 120
+        };
+        mainSplit.Panel1.Controls.Add(fieldsLayout);
+        mainSplit.Panel2.Controls.Add(bottomSplit);
+        tabMain.Controls.Add(mainSplit);
 
         var btnPanel = new FlowLayoutPanel
         {
@@ -149,6 +174,8 @@ public class TransactionDialog : Form
 
         Load += async (_, _) =>
         {
+            mainSplit.SplitterDistance = mainSplit.Height / 2;
+            bottomSplit.SplitterDistance = bottomSplit.Height / 2;
             await LoadDropdownsAsync();
             if (_existingId.HasValue)
                 await _attachmentPanel.LoadAsync("Transaction", _existingId.Value);

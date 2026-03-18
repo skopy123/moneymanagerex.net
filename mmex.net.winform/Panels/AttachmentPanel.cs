@@ -23,6 +23,9 @@ public class AttachmentPanel : UserControl
     private readonly List<(string SourcePath, string? Description)> _pendingAdds = new();
     private readonly List<long> _pendingDeletes = new();
 
+    // Autocomplete suggestions loaded from DB
+    private string[] _descriptionSuggestions = [];
+
     public AttachmentPanel(IAttachmentService service, string attachmentFolder)
     {
         _service = service;
@@ -38,6 +41,12 @@ public class AttachmentPanel : UserControl
         _list.Columns.Add("File", 200);
         _list.Columns.Add("Description", -2);
         _list.SelectedIndexChanged += (_, _) => UpdateButtons();
+        _list.DoubleClick += OnOpenClick;
+        _list.AllowDrop = true;
+        _list.DragEnter += (_, e) =>
+            e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
+                ? DragDropEffects.Copy : DragDropEffects.None;
+        _list.DragDrop += OnDragDrop;
 
         _btnAdd    = new Button { Text = "Add...", Width = 80 };
         _btnRemove = new Button { Text = "Remove", Width = 80, Enabled = false };
@@ -62,6 +71,7 @@ public class AttachmentPanel : UserControl
     /// <summary>Loads existing attachments for an already-persisted entity.</summary>
     public async Task LoadAsync(string refType, long refId)
     {
+        _descriptionSuggestions = await _service.GetAllDescriptionsAsync();
         _list.Items.Clear();
         var attachments = await _service.GetByRefAsync(refType, refId);
         foreach (var att in attachments)
@@ -101,14 +111,27 @@ public class AttachmentPanel : UserControl
             Filter = "All files (*.*)|*.*"
         };
         if (fileDlg.ShowDialog(this) != DialogResult.OK) return;
+        AddFile(fileDlg.FileName);
+    }
 
+    private void OnDragDrop(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetData(DataFormats.FileDrop) is not string[] files) return;
+        // Bring the parent window to front so the prompt appears above the drag source
+        (TopLevelControl as Form)?.Activate();
+        foreach (var file in files)
+            AddFile(file);
+    }
+
+    private void AddFile(string sourcePath)
+    {
         string? description = null;
-        using var descDlg = new DescriptionPrompt();
+        using var descDlg = new DescriptionPrompt(_descriptionSuggestions);
         if (descDlg.ShowDialog(this) == DialogResult.OK)
             description = descDlg.Value;
 
-        _pendingAdds.Add((fileDlg.FileName, description));
-        _list.Items.Add(MakeItem(Path.GetFileName(fileDlg.FileName), description, tag: null));
+        _pendingAdds.Add((sourcePath, description));
+        _list.Items.Add(MakeItem(Path.GetFileName(sourcePath), description, tag: null));
     }
 
     private void OnRemoveClick(object? sender, EventArgs e)
@@ -140,7 +163,7 @@ public class AttachmentPanel : UserControl
         string? filePath;
         if (item.Tag is Attachment att)
         {
-            filePath = Path.Combine(_attachmentFolder, att.FileName);
+            filePath = Path.Combine(_attachmentFolder, att.RefType, att.FileName);
         }
         else
         {
@@ -148,6 +171,7 @@ public class AttachmentPanel : UserControl
             var pending = _pendingAdds.FindLast(p => Path.GetFileName(p.SourcePath) == name);
             filePath = pending.SourcePath;
         }
+        
 
         if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
             Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
@@ -180,15 +204,23 @@ file sealed class DescriptionPrompt : Form
     private readonly TextBox _txt;
     public string? Value => string.IsNullOrWhiteSpace(_txt.Text) ? null : _txt.Text.Trim();
 
-    public DescriptionPrompt()
+    public DescriptionPrompt(string[] suggestions)
     {
         Text = "Description (optional)";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(320, 110);
+        Size = new Size(420, 130);
 
         _txt = new TextBox { Dock = DockStyle.Top, Margin = new Padding(8) };
+        if (suggestions.Length > 0)
+        {
+            _txt.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            _txt.AutoCompleteSource = AutoCompleteSource.CustomSource;
+            var source = new AutoCompleteStringCollection();
+            source.AddRange(suggestions);
+            _txt.AutoCompleteCustomSource = source;
+        }
 
         var btnPanel = new FlowLayoutPanel
         {

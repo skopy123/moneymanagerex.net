@@ -3,6 +3,7 @@ using mmex.net.core.Enums;
 using mmex.net.core.Services;
 using mmex.net.winform.Controls;
 using OokiiDlg = Ookii.Dialogs.WinForms;
+using System.Collections.Generic;
 
 namespace mmex.net.winform.Panels;
 
@@ -11,6 +12,7 @@ public class TransactionListPanel : UserControl
 {
     private readonly ITransactionService _transactionService;
     private readonly IAccountService _accountService;
+    private readonly IAttachmentService _attachmentService;
 
     // ── Toolbar ──────────────────────────────────────────────────────────────
     private readonly ToolStrip _toolbar;
@@ -33,6 +35,7 @@ public class TransactionListPanel : UserControl
     private long _currentAccountId;
     private IList<(Transaction Trx, decimal Balance)> _allRows = [];
     private Dictionary<long, string> _accountNames = [];
+    private Dictionary<long, int> _attachmentCounts = [];
     private bool _suppressFilter;
 
     // ── Events ───────────────────────────────────────────────────────────────
@@ -48,10 +51,11 @@ public class TransactionListPanel : UserControl
     public Transaction? SelectedTransaction =>
         _grid.CurrentRow?.Tag as Transaction;
 
-    public TransactionListPanel(ITransactionService transactionService, IAccountService accountService)
+    public TransactionListPanel(ITransactionService transactionService, IAccountService accountService, IAttachmentService attachmentService)
     {
         _transactionService = transactionService;
         _accountService = accountService;
+        _attachmentService = attachmentService;
 
         SetStyle(ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer |
@@ -101,7 +105,9 @@ public class TransactionListPanel : UserControl
 
         _cboFilterStatus = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110 };
         _cboFilterStatus.SelectedIndexChanged += (_, _) => { if (!_suppressFilter) ApplyFilter(); };
+        _suppressFilter = true;
         InitStatusFilter();
+        _suppressFilter = false;
 
         var btnClear = new Button { Text = "Clear", AutoSize = true, Height = 23 };
         btnClear.Click += OnClearFilter;
@@ -162,6 +168,9 @@ public class TransactionListPanel : UserControl
 
         _allRows = await _transactionService.GetRunningBalanceAsync(accountId);
 
+        var ids = _allRows.Select(r => r.Trx.Id);
+        _attachmentCounts = await _attachmentService.GetCountsByRefAsync("Transaction", ids);
+
         RefreshPayeeFilter();
         ApplyFilter();
     }
@@ -178,6 +187,8 @@ public class TransactionListPanel : UserControl
             new DataGridViewTextBoxColumn { Name = "Amount",  HeaderText = "Amount",            FillWeight = 10,
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight } },
             new DataGridViewTextBoxColumn { Name = "Status",  HeaderText = "Status",            FillWeight = 8  },
+            new DataGridViewTextBoxColumn { Name = "Att",     HeaderText = "📎",               FillWeight = 5,
+                DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleCenter } },
             new DataGridViewTextBoxColumn { Name = "Balance", HeaderText = "Balance",           FillWeight = 12,
                 DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight } }
         );
@@ -350,6 +361,7 @@ public class TransactionListPanel : UserControl
 
         var categoryName = trx.Category?.Name ?? (trx.Splits.Count > 0 ? "[Split]" : "");
 
+        var attCount = _attachmentCounts.GetValueOrDefault(trx.Id, 0);
         var idx = _grid.Rows.Add(
             trx.Date ?? "",
             payeeName,
@@ -357,6 +369,7 @@ public class TransactionListPanel : UserControl
             trx.Notes ?? "",
             amount.ToString("N2"),
             trx.Status.ToString(),
+            attCount > 0 ? attCount.ToString() : "",
             balance.ToString("N2")
         );
 
