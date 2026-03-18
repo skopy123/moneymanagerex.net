@@ -4,7 +4,7 @@ namespace mmex.net.core.Entities;
 
 public class Account
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public AccountType Type { get; set; }
     public string? AccountNum { get; set; }
@@ -17,6 +17,7 @@ public class Account
     public decimal InitialBalance { get; set; }
     public string? InitialDate { get; set; }
     public bool IsFavorite { get; set; }
+    /// <summary>FK to CURRENCYFORMATS_V1 — standard seed IDs (1-168), safe as int.</summary>
     public int CurrencyId { get; set; }
     public int? StatementLocked { get; set; }
     public string? StatementDate { get; set; }

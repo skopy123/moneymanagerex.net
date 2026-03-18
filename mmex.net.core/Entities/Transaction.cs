@@ -4,17 +4,17 @@ namespace mmex.net.core.Entities;
 
 public class Transaction
 {
-    public int Id { get; set; }
-    public int AccountId { get; set; }
-    public int? ToAccountId { get; set; }
-    /// <summary>C++ stores -1 or 0 for "no payee". Treat &lt;= 0 as null.</summary>
-    public int PayeeId { get; set; }
+    public long Id { get; set; }
+    public long AccountId { get; set; }
+    public long? ToAccountId { get; set; }
+    /// <summary>C++ stores -1 for "no payee". Treat &lt;= 0 as null.</summary>
+    public long PayeeId { get; set; }
     public TransactionType Type { get; set; }
     public decimal Amount { get; set; }
     public TransactionStatus Status { get; set; }
     public string? Number { get; set; }
     public string? Notes { get; set; }
-    public int? CategoryId { get; set; }
+    public long? CategoryId { get; set; }
     /// <summary>Stored as ISO 8601 TEXT "YYYY-MM-DD" in SQLite.</summary>
     public string? Date { get; set; }
     public string? LastUpdatedTime { get; set; }

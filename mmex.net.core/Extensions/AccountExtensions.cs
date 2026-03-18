@@ -10,7 +10,6 @@ public static class AccountExtensions
         account.Type is AccountType.Cash or AccountType.Checking
             or AccountType.Term or AccountType.CreditCard or AccountType.Loan;
 
-    /// <summary>Calculates running balance from a pre-loaded, ordered list of transactions.</summary>
     public static decimal CalculateBalance(this Account account, IEnumerable<Transaction> transactions)
     {
         var balance = account.InitialBalance;

@@ -4,11 +4,11 @@ namespace mmex.net.core.Services;
 
 public interface ITransactionService
 {
-    Task<IList<Transaction>> GetByAccountAsync(int accountId, DateOnly? from = null, DateOnly? to = null);
-    Task<IList<(Transaction Transaction, decimal RunningBalance)>> GetRunningBalanceAsync(int accountId);
-    Task<Transaction?> GetByIdAsync(int id);
+    Task<IList<Transaction>> GetByAccountAsync(long accountId, DateOnly? from = null, DateOnly? to = null);
+    Task<IList<(Transaction Transaction, decimal RunningBalance)>> GetRunningBalanceAsync(long accountId);
+    Task<Transaction?> GetByIdAsync(long id);
     Task<Transaction> CreateAsync(Transaction transaction, IList<SplitTransaction>? splits = null);
     Task<Transaction> UpdateAsync(Transaction transaction, IList<SplitTransaction>? splits = null);
-    Task SoftDeleteAsync(int id);
-    Task HardDeleteAsync(int id);
+    Task SoftDeleteAsync(long id);
+    Task HardDeleteAsync(long id);
 }

@@ -6,10 +6,10 @@ public interface ICategoryService
 {
     Task<IList<Category>> GetAllAsync();
     Task<IList<Category>> GetRootCategoriesAsync();
-    Task<IList<Category>> GetChildrenAsync(int parentId);
-    Task<Category?> GetByIdAsync(int id);
-    Task<string> GetFullNameAsync(int categoryId);
+    Task<IList<Category>> GetChildrenAsync(long parentId);
+    Task<Category?> GetByIdAsync(long id);
+    Task<string> GetFullNameAsync(long categoryId);
     Task<Category> CreateAsync(Category category);
     Task<Category> UpdateAsync(Category category);
-    Task DeleteAsync(int id);
+    Task DeleteAsync(long id);
 }

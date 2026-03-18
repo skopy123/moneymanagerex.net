@@ -10,7 +10,7 @@ public class DbContextTest : IDisposable
     // -----------------------------------------------------------------------
     // Point this at your .mmb file before running
     // -----------------------------------------------------------------------
-    private const string DbPath = @"C:\path\to\your\database.mmb";
+    private const string DbPath = @"C:\Users\dskop\OneDrive\Documents\osobni finance\moneyManagerEx\myDbCopy.mmb";
     // -----------------------------------------------------------------------
 
     private readonly MmexDbContext _db;
@@ -26,6 +26,109 @@ public class DbContextTest : IDisposable
     }
 
     public void Dispose() => _db.Dispose();
+
+    // --- Diagnostics --------------------------------------------------------
+
+    /// <summary>
+    /// Scans every integer column in every MMEX table via raw SQL (no EF type mapping).
+    /// Columns marked as "long" in the EF model are expected to exceed int32 (µs timestamps).
+    /// The test FAILS only if a column mapped as int in EF has values outside int32 range.
+    /// </summary>
+    [Fact]
+    public async Task Diagnostics_FindInt32OverflowColumns()
+    {
+        // Columns correctly mapped as long in EF entities (µs timestamp PKs / user-created FKs / COLOR).
+        // Overflow in these is expected — they are informational only.
+        var expectedLong = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "ACCOUNTLIST_V1.ACCOUNTID",
+            "CHECKINGACCOUNT_V1.TRANSID",    "CHECKINGACCOUNT_V1.ACCOUNTID",
+            "CHECKINGACCOUNT_V1.TOACCOUNTID","CHECKINGACCOUNT_V1.PAYEEID",
+            "CHECKINGACCOUNT_V1.CATEGID",    "CHECKINGACCOUNT_V1.COLOR",
+            "BILLSDEPOSITS_V1.BDID",         "BILLSDEPOSITS_V1.ACCOUNTID",
+            "BILLSDEPOSITS_V1.TOACCOUNTID",  "BILLSDEPOSITS_V1.PAYEEID",
+            "BILLSDEPOSITS_V1.CATEGID",      "BILLSDEPOSITS_V1.COLOR",
+            "SPLITTRANSACTIONS_V1.SPLITTRANSID","SPLITTRANSACTIONS_V1.TRANSID",
+            "SPLITTRANSACTIONS_V1.CATEGID",
+            "BUDGETSPLITTRANSACTIONS_V1.SPLITTRANSID","BUDGETSPLITTRANSACTIONS_V1.TRANSID",
+            "BUDGETSPLITTRANSACTIONS_V1.CATEGID",
+            "PAYEE_V1.PAYEEID",              "PAYEE_V1.CATEGID",
+            "CATEGORY_V1.CATEGID",           "CATEGORY_V1.PARENTID",
+            "CURRENCYHISTORY_V1.CURRHISTID",
+            "TAG_V1.TAGID",
+            "TAGLINK_V1.TAGLINKID",          "TAGLINK_V1.REFID",  "TAGLINK_V1.TAGID",
+            "TRANSLINK_V1.TRANSLINKID",      "TRANSLINK_V1.CHECKINGACCOUNTID",
+            "TRANSLINK_V1.LINKRECORDID",
+            "SHAREINFO_V1.SHAREINFOID",      "SHAREINFO_V1.CHECKINGACCOUNTID",
+            "INFOTABLE_V1.INFOID",
+            "SETTING_V1.SETTINGID",
+            "ATTACHMENT_V1.ATTACHMENTID",    "ATTACHMENT_V1.REFID",
+            "CUSTOMFIELD_V1.FIELDID",
+            "STOCK_V1.STOCKID",              "STOCK_V1.HELDAT",
+            "ASSETS_V1.ASSETID",
+        };
+
+        // All integer columns to audit: table → columns
+        var tables = new Dictionary<string, string[]>
+        {
+            ["ACCOUNTLIST_V1"]             = ["ACCOUNTID", "CURRENCYID", "STATEMENTLOCKED"],
+            ["CHECKINGACCOUNT_V1"]         = ["TRANSID", "ACCOUNTID", "TOACCOUNTID", "PAYEEID", "CATEGID", "FOLLOWUPID", "COLOR"],
+            ["BILLSDEPOSITS_V1"]           = ["BDID", "ACCOUNTID", "TOACCOUNTID", "PAYEEID", "CATEGID", "FOLLOWUPID", "COLOR", "REPEATS", "NUMOCCURRENCES"],
+            ["SPLITTRANSACTIONS_V1"]       = ["SPLITTRANSID", "TRANSID", "CATEGID"],
+            ["BUDGETSPLITTRANSACTIONS_V1"] = ["SPLITTRANSID", "TRANSID", "CATEGID"],
+            ["PAYEE_V1"]                   = ["PAYEEID", "CATEGID", "ACTIVE"],
+            ["CATEGORY_V1"]                = ["CATEGID", "ACTIVE", "PARENTID"],
+            ["CURRENCYFORMATS_V1"]         = ["CURRENCYID", "SCALE"],
+            ["CURRENCYHISTORY_V1"]         = ["CURRHISTID", "CURRENCYID", "CURRUPDTYPE"],
+            ["TAG_V1"]                     = ["TAGID", "ACTIVE"],
+            ["TAGLINK_V1"]                 = ["TAGLINKID", "REFID", "TAGID"],
+            ["TRANSLINK_V1"]               = ["TRANSLINKID", "CHECKINGACCOUNTID", "LINKRECORDID"],
+            ["SHAREINFO_V1"]               = ["SHAREINFOID", "CHECKINGACCOUNTID"],
+            ["INFOTABLE_V1"]               = ["INFOID"],
+            ["SETTING_V1"]                 = ["SETTINGID"],
+            ["ATTACHMENT_V1"]              = ["ATTACHMENTID", "REFID"],
+            ["CUSTOMFIELD_V1"]             = ["FIELDID"],
+            ["STOCK_V1"]                   = ["STOCKID", "HELDAT"],
+            ["ASSETS_V1"]                  = ["ASSETID"],
+        };
+
+        bool anyUnexpectedOverflow = false;
+        await using var conn = _db.Database.GetDbConnection();
+        await conn.OpenAsync();
+
+        foreach (var (table, cols) in tables)
+        {
+            await using var existsCmd = conn.CreateCommand();
+            existsCmd.CommandText = $"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{table}'";
+            var exists = (long)(await existsCmd.ExecuteScalarAsync() ?? 0L) > 0;
+            if (!exists) { _out.WriteLine($"{table}: (table not found)"); continue; }
+
+            foreach (var col in cols)
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = $"SELECT MIN({col}), MAX({col}) FROM {table} WHERE {col} IS NOT NULL";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                if (!reader.Read() || reader.IsDBNull(0)) continue;
+
+                var min = reader.GetInt64(0);
+                var max = reader.GetInt64(1);
+                bool overflow = min < int.MinValue || max > int.MaxValue;
+                bool isExpectedLong = expectedLong.Contains($"{table}.{col}");
+
+                if (overflow && isExpectedLong)
+                    _out.WriteLine($"LONG {table}.{col}: MIN={min}, MAX={max}");
+                else if (overflow)
+                {
+                    _out.WriteLine($"*** UNEXPECTED OVERFLOW *** {table}.{col}: MIN={min}, MAX={max}  <-- map as long in EF!");
+                    anyUnexpectedOverflow = true;
+                }
+                else
+                    _out.WriteLine($"OK   {table}.{col}: MIN={min}, MAX={max}");
+            }
+        }
+
+        Assert.False(anyUnexpectedOverflow, "One or more int-mapped columns have values outside int32 range — see test output.");
+    }
 
     // --- Accounts -----------------------------------------------------------
 
@@ -226,6 +329,14 @@ public class DbContextTest : IDisposable
     [Fact]
     public async Task ReadSettings_DoesNotThrow()
     {
+        // SETTING_V1 does not exist in all DB versions — skip gracefully
+        await using var conn = _db.Database.GetDbConnection();
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='SETTING_V1'";
+        var exists = (long)(await cmd.ExecuteScalarAsync() ?? 0L) > 0;
+        if (!exists) { _out.WriteLine("SETTING_V1 table not present in this DB version — skipped."); return; }
+
         var settings = await _db.Settings.ToListAsync();
         _out.WriteLine($"Settings: {settings.Count}");
         foreach (var s in settings)

@@ -19,15 +19,15 @@ public class CategoryService : ICategoryService
             .OrderBy(c => c.Name).ToListAsync()
             .ContinueWith(t => (IList<Category>)t.Result);
 
-    public Task<IList<Category>> GetChildrenAsync(int parentId) =>
+    public Task<IList<Category>> GetChildrenAsync(long parentId) =>
         _db.Categories.Where(c => c.ParentId == parentId)
             .OrderBy(c => c.Name).ToListAsync()
             .ContinueWith(t => (IList<Category>)t.Result);
 
-    public Task<Category?> GetByIdAsync(int id) =>
+    public Task<Category?> GetByIdAsync(long id) =>
         _db.Categories.Include(c => c.Parent).FirstOrDefaultAsync(c => c.Id == id);
 
-    public async Task<string> GetFullNameAsync(int categoryId)
+    public async Task<string> GetFullNameAsync(long categoryId)
     {
         var all = await _db.Categories.ToDictionaryAsync(c => c.Id);
         if (!all.TryGetValue(categoryId, out var cat)) return string.Empty;
@@ -58,7 +58,7 @@ public class CategoryService : ICategoryService
         return category;
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(long id)
     {
         var cat = await _db.Categories.FindAsync(id)
             ?? throw new KeyNotFoundException($"Category {id} not found.");

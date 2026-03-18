@@ -2,7 +2,7 @@ namespace mmex.net.core.Entities;
 
 public class CustomField
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
     /// <summary>"Transaction", "Stock", "Asset", "Bank Account", "Repeating Transaction", "Payee".</summary>
     public string RefType { get; set; } = string.Empty;
     public string? Description { get; set; }

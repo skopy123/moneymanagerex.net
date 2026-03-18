@@ -18,7 +18,7 @@ public class PayeeService : IPayeeService
             .ContinueWith(t => (IList<Payee>)t.Result);
     }
 
-    public Task<Payee?> GetByIdAsync(int id) =>
+    public Task<Payee?> GetByIdAsync(long id) =>
         _db.Payees.Include(p => p.Category).FirstOrDefaultAsync(p => p.Id == id);
 
     public async Task<Payee> CreateAsync(Payee payee)
@@ -35,7 +35,7 @@ public class PayeeService : IPayeeService
         return payee;
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(long id)
     {
         var payee = await _db.Payees.FindAsync(id)
             ?? throw new KeyNotFoundException($"Payee {id} not found.");

@@ -29,7 +29,7 @@ public class ScheduledTransactionService : IScheduledTransactionService
             .ToListAsync();
     }
 
-    public Task<ScheduledTransaction?> GetByIdAsync(int id) =>
+    public Task<ScheduledTransaction?> GetByIdAsync(long id) =>
         _db.ScheduledTransactions
             .Include(s => s.Account).Include(s => s.Payee).Include(s => s.Category)
             .Include(s => s.Splits)
@@ -49,7 +49,7 @@ public class ScheduledTransactionService : IScheduledTransactionService
         return scheduled;
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(long id)
     {
         var sched = await _db.ScheduledTransactions.FindAsync(id)
             ?? throw new KeyNotFoundException($"ScheduledTransaction {id} not found.");
@@ -57,14 +57,13 @@ public class ScheduledTransactionService : IScheduledTransactionService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<Transaction> ExecuteAsync(int scheduledId)
+    public async Task<Transaction> ExecuteAsync(long scheduledId)
     {
         var sched = await _db.ScheduledTransactions
             .Include(s => s.Splits)
             .FirstOrDefaultAsync(s => s.Id == scheduledId)
             ?? throw new KeyNotFoundException($"ScheduledTransaction {scheduledId} not found.");
 
-        // Create the real transaction
         var now = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var trx = new Transaction
         {
@@ -84,7 +83,6 @@ public class ScheduledTransactionService : IScheduledTransactionService
             LastUpdatedTime = now
         };
 
-        // Copy splits
         foreach (var bs in sched.Splits)
         {
             trx.Splits.Add(new SplitTransaction
@@ -97,21 +95,18 @@ public class ScheduledTransactionService : IScheduledTransactionService
 
         _db.Transactions.Add(trx);
 
-        // Advance schedule
-        var currentDate = DateOnly.TryParse(sched.NextOccurrenceDate, out var d) ? d : DateOnly.FromDateTime(DateTime.Today);
+        var currentDate = DateOnly.TryParse(sched.NextOccurrenceDate, out var d)
+            ? d : DateOnly.FromDateTime(DateTime.Today);
         var nextDate = sched.CalculateNextDate(currentDate);
         var freq = sched.GetFrequency();
 
         if (freq == RepeatFrequency.Once || nextDate == null)
         {
-            // One-time: delete the schedule
             _db.ScheduledTransactions.Remove(sched);
         }
         else
         {
             sched.NextOccurrenceDate = nextDate.Value.ToString("yyyy-MM-dd");
-
-            // Decrement fixed-count frequencies
             if (sched.NumOccurrences.HasValue && sched.NumOccurrences > 0
                 && freq is not RepeatFrequency.InXDays and not RepeatFrequency.InXMonths
                     and not RepeatFrequency.EveryXDays and not RepeatFrequency.EveryXMonths)

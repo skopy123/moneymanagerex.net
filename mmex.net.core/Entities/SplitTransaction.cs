@@ -2,9 +2,9 @@ namespace mmex.net.core.Entities;
 
 public class SplitTransaction
 {
-    public int Id { get; set; }
-    public int TransactionId { get; set; }
-    public int? CategoryId { get; set; }
+    public long Id { get; set; }
+    public long TransactionId { get; set; }
+    public long? CategoryId { get; set; }
     public decimal? Amount { get; set; }
     public string? Notes { get; set; }
 

@@ -2,6 +2,7 @@ using mmex.net.core.Entities;
 using mmex.net.core.Enums;
 using mmex.net.core.Services;
 using mmex.net.winform.Controls;
+using mmex.net.winform.Panels;
 
 namespace mmex.net.winform.Forms;
 
@@ -26,8 +27,11 @@ public class TransactionDialog : Form
     private readonly Button _btnAddSplit;
     private readonly Button _btnOk;
     private readonly Button _btnCancel;
+    private readonly AttachmentPanel _attachmentPanel;
 
-    private int _accountId;
+    private long _accountId;
+    private readonly long? _existingId;
+    private readonly Transaction? _existing;
     public Transaction? Result { get; private set; }
     public IList<SplitTransaction>? ResultSplits { get; private set; }
 
@@ -35,13 +39,18 @@ public class TransactionDialog : Form
         IPayeeService payeeService,
         ICategoryService categoryService,
         IAccountService accountService,
-        int accountId,
+        IAttachmentService attachmentService,
+        string attachmentFolder,
+        long accountId,
         Transaction? existing = null)
     {
         _payeeService = payeeService;
         _categoryService = categoryService;
         _accountService = accountService;
         _accountId = accountId;
+        _existingId = existing?.Id;
+        _existing = existing;
+        _attachmentPanel = new AttachmentPanel(attachmentService, attachmentFolder) { Dock = DockStyle.Fill };
 
         Text = existing == null ? "New Transaction" : "Edit Transaction";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -89,8 +98,11 @@ public class TransactionDialog : Form
         var tabMain = new TabPage("Transaction");
         var tabSplits = new TabPage("Splits");
         tabSplits.Controls.Add(splitsContainer);
+        var tabAttachments = new TabPage("Attachments");
+        tabAttachments.Controls.Add(_attachmentPanel);
         _tabs.TabPages.Add(tabMain);
         _tabs.TabPages.Add(tabSplits);
+        _tabs.TabPages.Add(tabAttachments);
 
         // Layout for main tab
         var layout = new TableLayoutPanel
@@ -135,7 +147,12 @@ public class TransactionDialog : Form
 
         if (existing != null) PopulateFrom(existing);
 
-        Load += async (_, _) => await LoadDropdownsAsync();
+        Load += async (_, _) =>
+        {
+            await LoadDropdownsAsync();
+            if (_existingId.HasValue)
+                await _attachmentPanel.LoadAsync("Transaction", _existingId.Value);
+        };
     }
 
     private static void AddRow(TableLayoutPanel layout, string label, Control control, int row)
@@ -168,6 +185,18 @@ public class TransactionDialog : Form
             splitCatCol.DataSource = categories.ToList();
             splitCatCol.DisplayMember = "Name";
             splitCatCol.ValueMember = "Id";
+        }
+
+        // Restore selections for existing transaction — must happen AFTER DataSource is set.
+        // (PopulateFrom runs in the constructor before data is loaded, so it can't set these.)
+        if (_existing != null)
+        {
+            if (_existing.PayeeId > 0)
+                _cboPayee.SelectedValue = _existing.PayeeId;
+            if (_existing.CategoryId.HasValue)
+                _cboCategory.SelectedValue = _existing.CategoryId.Value;
+            if (_existing.Type == TransactionType.Transfer && _existing.ToAccountId.HasValue)
+                _cboToAccount.SelectedValue = _existing.ToAccountId.Value;
         }
 
         OnTypeChanged(null, EventArgs.Empty);
@@ -212,9 +241,9 @@ public class TransactionDialog : Form
             Type = type,
             Amount = _txtAmount.Value,
             ToAmount = type == TransactionType.Transfer ? _txtToAmount.Value : null,
-            ToAccountId = type == TransactionType.Transfer ? (int?)_cboToAccount.SelectedValue : null,
-            PayeeId = type != TransactionType.Transfer && _cboPayee.SelectedValue is int pid ? pid : 0,
-            CategoryId = _cboCategory.SelectedValue is int cid ? cid : null,
+            ToAccountId = type == TransactionType.Transfer && _cboToAccount.SelectedValue is long taid ? taid : (long?)null,
+            PayeeId = type != TransactionType.Transfer && _cboPayee.SelectedValue is long pid ? pid : 0,
+            CategoryId = _cboCategory.SelectedValue is long cid ? cid : (long?)null,
             Status = status,
             Number = _txtNumber.Text,
             Notes = _txtNotes.Text
@@ -230,7 +259,7 @@ public class TransactionDialog : Form
             {
                 splits.Add(new SplitTransaction
                 {
-                    CategoryId = row.Cells["SplitCategory"].Value as int?,
+                    CategoryId = row.Cells["SplitCategory"].Value is long scid ? scid : (long?)null,
                     Amount = amt,
                     Notes = row.Cells["SplitNotes"].Value?.ToString()
                 });
@@ -243,4 +272,11 @@ public class TransactionDialog : Form
             ResultSplits = splits;
         }
     }
+
+    /// <summary>
+    /// Writes buffered attachment changes for the given transaction ID.
+    /// Call this after the transaction record has been created/updated in the DB.
+    /// </summary>
+    public Task CommitAttachmentsAsync(long transactionId) =>
+        _attachmentPanel.CommitAsync("Transaction", transactionId);
 }

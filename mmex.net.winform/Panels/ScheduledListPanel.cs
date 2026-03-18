@@ -1,5 +1,6 @@
 using mmex.net.core.Entities;
 using mmex.net.core.Services;
+using mmex.net.winform.Controls;
 
 namespace mmex.net.winform.Panels;
 
@@ -14,6 +15,10 @@ public class ScheduledListPanel : UserControl
     public ScheduledListPanel(IScheduledTransactionService scheduledService)
     {
         _scheduledService = scheduledService;
+
+        SetStyle(ControlStyles.AllPaintingInWmPaint |
+                 ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.ResizeRedraw, true);
 
         _grid = new DataGridView
         {
@@ -46,6 +51,7 @@ public class ScheduledListPanel : UserControl
         );
 
         _grid.CellClick += OnCellClick;
+        _grid.EnableDoubleBuffering();
         Controls.Add(_grid);
     }
 

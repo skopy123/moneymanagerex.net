@@ -11,10 +11,15 @@ public class AccountListPanel : UserControl
     private readonly TreeView _tree;
 
     public event EventHandler<Account>? AccountSelected;
+    public event EventHandler<Account>? AccountEditRequested;
 
     public AccountListPanel(IAccountService accountService)
     {
         _accountService = accountService;
+
+        SetStyle(ControlStyles.AllPaintingInWmPaint |
+                 ControlStyles.OptimizedDoubleBuffer |
+                 ControlStyles.ResizeRedraw, true);
 
         _tree = new TreeView
         {
@@ -24,6 +29,11 @@ public class AccountListPanel : UserControl
             ShowPlusMinus = true
         };
         _tree.AfterSelect += OnAfterSelect;
+        _tree.NodeMouseDoubleClick += (_, e) =>
+        {
+            if (e.Node?.Tag is Account account)
+                AccountEditRequested?.Invoke(this, account);
+        };
 
         Controls.Add(_tree);
     }

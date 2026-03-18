@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageReference Include="Ookii.Dialogs.WinForms" Version="4.0.0" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -14,6 +15,10 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Follow Windows 11 dark/light mode. Requires ApplicationConfiguration.Initialize(). -->
+    <ApplicationColorMode>System</ApplicationColorMode>
+    <!-- Crisp rendering on high-DPI and multi-monitor setups. -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
 </Project>

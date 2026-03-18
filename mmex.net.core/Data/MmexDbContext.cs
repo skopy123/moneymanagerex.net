@@ -116,17 +116,23 @@ public class MmexDbContext : DbContext
             e.Property(t => t.ToAmount).HasColumnName("TOTRANSAMOUNT");
             e.Property(t => t.Color).HasColumnName("COLOR").HasDefaultValue(-1L);
 
-            // Soft delete global query filter
-            e.HasQueryFilter(t => t.DeletedTime == null);
+            // Soft delete global query filter.
+            // MMEX C++ stores "" (empty string) for non-deleted rows, not SQL NULL.
+            // Accept both so the app works with databases from either convention.
+            e.HasQueryFilter(t => t.DeletedTime == null || t.DeletedTime == "");
 
             e.HasOne(t => t.Account).WithMany(a => a.Transactions)
                 .HasForeignKey(t => t.AccountId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.ToAccount).WithMany(a => a.ToTransactions)
                 .HasForeignKey(t => t.ToAccountId).OnDelete(DeleteBehavior.Restrict);
+            // IsRequired(false) forces LEFT JOIN on Include.
+            // PAYEEID = -1 means "no payee" (transfers); no row exists for -1.
+            // CATEGID = -1 also appears on some rows. INNER JOIN would silently
+            // drop those rows from query results, hiding transfers from the list.
             e.HasOne(t => t.Payee).WithMany()
-                .HasForeignKey(t => t.PayeeId).OnDelete(DeleteBehavior.Restrict);
+                .HasForeignKey(t => t.PayeeId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(t => t.Category).WithMany()
-                .HasForeignKey(t => t.CategoryId).OnDelete(DeleteBehavior.Restrict);
+                .HasForeignKey(t => t.CategoryId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(t => t.Splits).WithOne(s => s.Transaction)
                 .HasForeignKey(s => s.TransactionId);
             e.HasMany(t => t.TagLinks).WithOne()

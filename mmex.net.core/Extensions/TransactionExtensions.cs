@@ -10,7 +10,7 @@ public static class TransactionExtensions
     /// Positive = money coming in, negative = money going out.
     /// Void and deleted transactions must be excluded before calling this.
     /// </summary>
-    public static decimal GetFlow(this Transaction trx, int accountId)
+    public static decimal GetFlow(this Transaction trx, long accountId)
     {
         return trx.Type switch
         {
@@ -26,7 +26,7 @@ public static class TransactionExtensions
     public static bool IsVoid(this Transaction trx) => trx.Status == TransactionStatus.Void;
     public static bool AffectsBalance(this Transaction trx) => !trx.IsDeleted() && !trx.IsVoid();
 
-    /// <summary>Returns the effective payee ID, or null if none (C++ stores -1 or 0).</summary>
-    public static int? GetPayeeId(this Transaction trx) =>
+    /// <summary>Returns the effective payee ID, or null if none (C++ stores -1).</summary>
+    public static long? GetPayeeId(this Transaction trx) =>
         trx.PayeeId <= 0 ? null : trx.PayeeId;
 }
