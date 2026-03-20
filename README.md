@@ -27,6 +27,9 @@ The SQLite database format is fully compatible with the original MMEX applicatio
 3. Set `mmex.net.winform` as the startup project and run
 4. On first launch, select an existing `.mmb` database or create a new one — the path is remembered for subsequent launches
 
+<img width="1086" height="543" alt="image" src="https://github.com/user-attachments/assets/c14e8dd1-1a02-4fcb-ba8a-05b4fdb136a6" />
+
+
 ## Web Server
 
 The `mmex.net.webServer` project provides a modern Blazor-based web interface with the same functionality as the desktop app: account management, transaction CRUD with splits, scheduled transactions, payee and category management, and file attachments.
