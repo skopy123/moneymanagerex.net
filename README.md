@@ -31,6 +31,9 @@ The SQLite database format is fully compatible with the original MMEX applicatio
 
 The `mmex.net.webServer` project provides a modern Blazor-based web interface with the same functionality as the desktop app: account management, transaction CRUD with splits, scheduled transactions, payee and category management, and file attachments.
 
+<img width="1139" height="585" alt="mmex net web" src="https://github.com/user-attachments/assets/cb1ef6b7-6745-496d-8965-45203328680b" />
+
+
 ### Run directly
 
 ```bash
